@@ -1,5 +1,24 @@
 #include "utils.h"
 
+void Utils::adaptiveCalc(const Mat& im, int row, int col, const Mat& mask, int& A1, int& A2, int& zmin, int& zmax, int& zmed, int& zxy) {
+    int u = mask.rows;
+    int v = mask.cols;
+
+    for (int s = -(u - u / 2); s <= u - u / 2; ++s) {
+        for (int t = -(v - v / 2); t <= v - v / 2; ++t) {
+            mask.at<double>(s + u / 2, t + v / 2) = static_cast<double>(im.at<uchar>(row + s, col + t));
+        }
+    }
+
+    zmin = static_cast<int>(min(mask)[0]);
+    zmax = static_cast<int>(max(mask)[0]);
+    zmed = static_cast<int>(median(mask)[0]);
+    zxy = static_cast<int>(im.at<uchar>(row, col));
+
+    A1 = zmed - zmin;
+    A2 = zmed - zmax;
+}
+
 void Utils::histogramEqualization(const Mat& im, Mat& finalResult, vector<double>& histogram) {
     int rows = im.rows;
     int cols = im.cols;
@@ -145,5 +164,57 @@ void Utils::preProcessing(const Mat& im, Mat& resized_im, Mat& gray_im, Mat& eq_
         }
 
         waitKey(0);
+    }
+}
+
+
+void Utils::extractPlateRegion(const Mat& eq_im, const Mat& bin_im, Mat& extracted_im, bool show) {
+    Mat edges, filled;
+    Canny(bin_im, edges, 100, 200);
+    morphologyEx(edges, filled, MORPH_CLOSE, Mat(), Point(-1, -1), 3);
+
+    vector<vector<Point>> contours;
+    findContours(filled, contours, RETR_EXTERNAL, CHAIN_APPROX_SIMPLE);
+
+    vector<Rect> boundRect(contours.size());
+
+    for (size_t i = 0; i < contours.size(); i++) {
+        if (contourArea(contours[i]) < 5000 && contourArea(contours[i]) > 250) {
+            boundRect[i] = boundingRect(contours[i]);
+            rectangle(extracted_im, boundRect[i].tl(), boundRect[i].br(), Scalar(0, 255, 0), 2);
+        }
+    }
+
+    if (show) {
+        namedWindow("Bounding Boxes", WINDOW_NORMAL);
+        imshow("Bounding Boxes", extracted_im);
+        waitKey(0);
+    }
+}
+
+void Utils::extractCharacters(const Mat& extracted_plate, const Size& charSize, Mat& characters, bool show) {
+    Mat gray_plate;
+    cvtColor(extracted_plate, gray_plate, COLOR_BGR2GRAY);
+    threshold(gray_plate, gray_plate, 0, 255, THRESH_BINARY | THRESH_OTSU);
+
+    Mat element = getStructuringElement(MORPH_RECT, Size(3, 3));
+    dilate(gray_plate, gray_plate, element);
+
+    vector<vector<Point>> contours;
+    findContours(gray_plate, contours, RETR_EXTERNAL, CHAIN_APPROX_SIMPLE);
+
+    characters = Mat::zeros(charSize, CV_8UC1);
+
+    for (size_t i = 0; i < contours.size(); i++) {
+        Rect boundRect = boundingRect(contours[i]);
+        Mat charImage = gray_plate(boundRect);
+
+        resize(charImage, charImage, charSize);
+        characters.col(i) = charImage.reshape(1, 1);
+
+        if (show) {
+            imshow("Extracted Characters", charImage);
+            waitKey(0);
+        }
     }
 }
