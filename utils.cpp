@@ -56,3 +56,94 @@ void Utils::my_histogram_equalization(const Mat& im, Mat& finalResult, vector<do
     reduce(frequency, histogram, 0, REDUCE_SUM);
     histogram /= pixelNumber;
 }
+
+Mat Utils::my_imgthresholding(const Mat& im, double T) {
+    int x = im.rows;
+    int y = im.cols;
+    vector<uchar> G1;
+    vector<uchar> G2;
+    double meanGL = mean(im)[0];
+
+    double th;
+    if (T < 0)
+        th = meanGL;
+    else
+        th = T;
+
+    double newTh = 0;
+    int it = 0;
+    while (abs(th - newTh) > 0.1) {
+        th = newTh;
+        G1.clear();
+        G2.clear();
+
+        parallel_for_(Range(0, x), [&](const Range& range) {
+            for (int row = range.start; row < range.end; ++row) {
+                for (int col = 0; col < y; ++col) {
+                    if (static_cast<double>(im.at<uchar>(row, col)) > th)
+                        G1.push_back(im.at<uchar>(row, col));
+                    else
+                        G2.push_back(im.at<uchar>(row, col));
+                }
+            }
+        });
+
+        double u1 = mean(G1)[0];
+        double u2 = mean(G2)[0];
+        newTh = (u1 + u2) / 2;
+        it++;
+    }
+
+    Mat new_im(x, y, CV_8UC1);
+
+    parallel_for_(Range(0, x), [&](const Range& range) {
+        for (int row = range.start; row < range.end; ++row) {
+            for (int col = 0; col < y; ++col) {
+                if (im.at<uchar>(row, col) <= static_cast<uchar>(round(newTh)))
+                    new_im.at<uchar>(row, col) = 0;
+                else
+                    new_im.at<uchar>(row, col) = 255;
+            }
+        }
+    });
+
+    cout << "Number of iterations: " << it << endl;
+
+    return new_im;
+}
+
+
+void Utils::preprocessing(const Mat& im, Mat& resized_im, Mat& gray_im, Mat& eq_im, Mat& filtered_im, Mat& bin_im, bool show) {
+    // Resize image
+    resize(im, resized_im, Size(1024, 768), 0, 0, INTER_CUBIC);
+
+    // Convert to grayscale
+    cvtColor(resized_im, gray_im, COLOR_BGR2GRAY);
+
+    // Apply histogram equalization
+    my_histogram_equalization(gray_im, eq_im);
+
+    // Apply median filter
+    Mat filtered_im_temp;
+    medianBlur(eq_im, filtered_im_temp, 3);
+
+    // Apply local Laplacian filter
+    filtered_im = locallapfilt(filtered_im_temp, 0.2, 0.5);
+
+    // Binarize the image
+    double level = threshold(filtered_im, bin_im, 0, 255, THRESH_BINARY | THRESH_OTSU);
+
+    if (show) {
+        // Display the images
+        vector<Mat> images = {resized_im, gray_im, eq_im, bin_im};
+        vector<string> titles = {"Resized Image", "Gray Level", "Histogram Equalized", "Binary Image"};
+        int numImages = images.size();
+
+        for (int i = 0; i < numImages; ++i) {
+            namedWindow(titles[i], WINDOW_NORMAL);
+            imshow(titles[i], images[i]);
+        }
+
+        waitKey(0);
+    }
+}
