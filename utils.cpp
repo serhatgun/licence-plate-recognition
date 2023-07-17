@@ -1,6 +1,6 @@
 #include "utils.h"
 
-void Utils::my_histogram_equalization(const Mat& im, Mat& finalResult, vector<double>& histogram) {
+void Utils::histogramEqualization(const Mat& im, Mat& finalResult, vector<double>& histogram) {
     int rows = im.rows;
     int cols = im.cols;
     int pixelNumber = rows * cols;
@@ -57,7 +57,7 @@ void Utils::my_histogram_equalization(const Mat& im, Mat& finalResult, vector<do
     histogram /= pixelNumber;
 }
 
-Mat Utils::my_imgthresholding(const Mat& im, double T) {
+Mat Utils::imgThresholding(const Mat& im, double T) {
     int x = im.rows;
     int y = im.cols;
     vector<uchar> G1;
@@ -113,7 +113,7 @@ Mat Utils::my_imgthresholding(const Mat& im, double T) {
 }
 
 
-void Utils::preprocessing(const Mat& im, Mat& resized_im, Mat& gray_im, Mat& eq_im, Mat& filtered_im, Mat& bin_im, bool show) {
+void Utils::preProcessing(const Mat& im, Mat& resized_im, Mat& gray_im, Mat& eq_im, Mat& filtered_im, Mat& bin_im, bool show) {
     // Resize image
     resize(im, resized_im, Size(1024, 768), 0, 0, INTER_CUBIC);
 
